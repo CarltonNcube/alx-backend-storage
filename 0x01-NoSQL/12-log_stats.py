@@ -2,7 +2,6 @@
 """Provides some stats about Nginx logs stored in MongoDB."""
 from pymongo import MongoClient
 
-
 def get_logs_stats(mongo_collection):
     """
     Retrieves statistics about Nginx logs stored in the MongoDB collection.
@@ -34,3 +33,20 @@ def get_logs_stats(mongo_collection):
     stats['GET /status'] = specific_log_count
 
     return stats
+
+if __name__ == "__main__":
+    """Provides some stats about Nginx logs stored in MongoDB."""
+    client = MongoClient('mongodb://127.0.0.1:27017')
+    nginx_collection = client.logs.nginx
+
+    stats = get_logs_stats(nginx_collection)
+
+    print("Statistics:")
+    for key, value in stats.items():
+        if isinstance(value, dict):
+            print(f"\t{key}:")
+            for method, count in value.items():
+                print(f"\t\t{method}: {count}")
+        else:
+            print(f"\t{key}: {value}")
+
