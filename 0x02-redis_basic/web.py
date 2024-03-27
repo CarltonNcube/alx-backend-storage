@@ -3,7 +3,6 @@
 """
 Script to fetch HTML content from a URL.
 """
-
 import redis
 import requests
 from functools import wraps
@@ -32,10 +31,7 @@ def track_get_page(fn: Callable) -> Callable:
 
 @track_get_page
 def get_page(url: str) -> str:
-    """ 
-    Retrieves HTML content by making an HTTP request to the 
-    specified endpoint
+    """ Retrieves HTML content by making an HTTP request endpoint.
     """
     response = requests.get(url)
     return response.text
-
