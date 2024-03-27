@@ -10,34 +10,47 @@ from typing import Any, Callable, Optional, Union
 
 
 class Cache:
-    """ Caching class
     """
+    Cache class for storing data using Redis
+    """
+
     def __init__(self) -> None:
-        """ Initialize new cache object
+        """
+        Initializes the Cache object with a Redis client and flushes the
+        database.
         """
         self._redis = redis.Redis()
         self._redis.flushdb()
 
-    @call_history
-    @count_calls
-    def store(self, data: Union[str, bytes,  int,  float]) -> str:
-        """ 
-        Stores data in redis with randomly generated key
+    def store(self, data: Union[str, bytes, int, float]) -> str:
+        """
+        Stores data in Redis with a randomly generated key and returns the key.
+
+        Args:
+            data: Data to be stored. Can be str, bytes, int, or float.
+
+        Returns:
+            str: Randomly generated key used to store the data in Redis.
         """
         key = str(uuid4())
-        client = self._redis
-        client.set(key, data)
+        self._redis.set(key, data)
         return key
 
     def get(self, key: str, fn: Optional[Callable] = None) -> Any:
-        """ 
-        Gets key's value from redis and converts result byte  into 
-        correct data type
         """
-        client = self._redis
-        value = client.get(key)
-        if not value:
-            return
+        Retrieves data from Redis using the provided key and optionally applies
+        a conversion function.
+
+        Args:
+            key: The key used to retrieve the data from Redis.
+            fn: Optional conversion function to be applied to the retrieved data.
+
+        Returns:
+            Any: The retrieved data, optionally converted based on the provided function.
+        """
+        value = self._redis.get(key)
+        if value is None:
+            return None
         if fn is int:
             return self.get_int(value)
         if fn is str:
@@ -47,24 +60,37 @@ class Cache:
         return value
 
     def get_str(self, data: bytes) -> str:
-        """ 
-        Converts bytes to string
+        """
+        Converts bytes to string.
+
+        Args:
+            data: Bytes to be converted to string.
+
+        Returns:
+            str: Converted string.
         """
         return data.decode('utf-8')
 
     def get_int(self, data: bytes) -> int:
-        """ 
-        Converts bytes to integers
+        """
+        Converts bytes to integers.
+
+        Args:
+            data: Bytes to be converted to integer.
+
+        Returns:
+            int: Converted integer.
         """
         return int(data)
 
+
 def count_calls(method: Callable) -> Callable:
-    """ 
+    """
     Decorator for Cache class methods to track call count
     """
     @wraps(method)
     def wrapper(self: Any, *args, **kwargs) -> str:
-        """ 
+        """
         Wraps called method and adds its call count redis before execution
         """
         self._redis.incr(method.__qualname__)
@@ -73,12 +99,12 @@ def count_calls(method: Callable) -> Callable:
 
 
 def call_history(method: Callable) -> Callable:
-    """ 
+    """
     Decorator for Cache class method to track args
     """
     @wraps(method)
     def wrapper(self: Any, *args) -> str:
-        """ 
+        """
         Wraps called method and tracks its passed argument by storing
             them to redis
         """
@@ -90,7 +116,7 @@ def call_history(method: Callable) -> Callable:
 
 
 def replay(fn: Callable) -> None:
-    """ 
+    """
     Check redis for how many times a function was called and display:
             - How many times it was called
             - Function args and output for each call
