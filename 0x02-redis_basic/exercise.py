@@ -9,18 +9,6 @@ from uuid import uuid4
 from functools import wraps
 from typing import Union, Any, Callable, Optional
 
-def reverse_string(input_str: str) -> str:
-    """
-    Reverse a given string.
-
-    Args:
-        input_str (str): The input string to be reversed.
-
-    Returns:
-        str: The reversed string.
-    """
-    return input_str[::-1]
-
 class Cache:
     """
     Cache class for storing data using Redis
@@ -37,10 +25,10 @@ class Cache:
     def store(self, data: Union[str, bytes, int, float]) -> str:
         """
         Stores data in Redis with a randomly generated key and returns the key.
-
+        
         Args:
             data: Data to be stored. Can be str, bytes, int, or float.
-
+        
         Returns:
             str: Randomly generated key used to store the data in Redis.
         """
@@ -74,10 +62,10 @@ class Cache:
 
     def get_str(self, data: bytes) -> str:
         """
-        Converts bytes to a string.
+        Converts bytes to string.
 
         Args:
-            data: Bytes to be converted to a string.
+            data: Bytes to be converted to string.
 
         Returns:
             str: Converted string.
@@ -86,10 +74,10 @@ class Cache:
 
     def get_int(self, data: bytes) -> int:
         """
-        Converts bytes to an integer.
+        Converts bytes to integers.
 
         Args:
-            data: Bytes to be converted to an integer.
+            data: Bytes to be converted to integer.
 
         Returns:
             int: Converted integer.
@@ -98,19 +86,12 @@ class Cache:
 
     def count_calls(method: Callable) -> Callable:
         """
-        Decorator to count the number of times a method is called.
-
-        Args:
-            method: The method to be decorated.
-
-        Returns:
-            Callable: Decorated method.
+        Decorator for Cache class methods to track call count
         """
         @wraps(method)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self: Any, *args, **kwargs) -> str:
             """
-            Wraps the called method and increments the call count in Redis
-            before execution.
+            Wraps called method and adds its call count redis before execution
             """
             self._redis.incr(method.__qualname__)
             return method(self, *args, **kwargs)
@@ -118,44 +99,33 @@ class Cache:
 
     def call_history(method: Callable) -> Callable:
         """
-        Decorator to store the history of inputs and outputs for a particular
-        function.
-
-        Args:
-            method: The method to be decorated.
-
-        Returns:
-            Callable: Decorated method.
+        Decorator for Cache class method to track args
         """
         @wraps(method)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self: Any, *args) -> str:
             """
-            Wraps the called method and tracks its passed arguments by storing
-            them in Redis.
+            Wraps called method and tracks its passed argument by storing
+            them to redis
             """
-            inputs_key = f"{method.__qualname__}:inputs"
-            outputs_key = f"{method.__qualname__}:outputs"
-
-            self._redis.rpush(inputs_key, str(args))
-            output = method(self, *args, **kwargs)
-            self._redis.rpush(outputs_key, output)
-
+            self._redis.rpush(f'{method.__qualname__}:inputs', str(args))
+            output = method(self, *args)
+            self._redis.rpush(f'{method.__qualname__}:outputs', output)
             return output
         return wrapper
 
-    @staticmethod
     def replay(fn: Callable) -> None:
         """
-        Check Redis for how many times a function was called and display:
+        Check redis for how many times a function was called and display:
             - How many times it was called
             - Function args and output for each call
         """
         client = redis.Redis()
         calls = client.get(fn.__qualname__).decode('utf-8')
-        inputs = [input.decode('utf-8') for input in 
-                client.lrange(f'{fn.__qualname__}:inputs', 0, -1)]
-        outputs = [output.decode('utf-8') for output in 
-                client.lrange(f'{fn.__qualname__}:outputs', 0, -1)]
+        inputs = [input.decode('utf-8') for input in
+                  client.lrange(f'{fn.__qualname__}:inputs', 0, -1)]
+        outputs = [output.decode('utf-8') for output in
+                   client.lrange(f'{fn.__qualname__}:outputs', 0, -1)]
         print(f'{fn.__qualname__} was called {calls} times:')
         for input, output in zip(inputs, outputs):
             print(f'{fn.__qualname__}(*{input}) -> {output}')
+
