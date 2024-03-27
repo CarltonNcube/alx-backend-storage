@@ -9,6 +9,18 @@ from uuid import uuid4
 from functools import wraps
 from typing import Union, Any, Callable, Optional
 
+def reverse_string(input_str: str) -> str:
+    """
+    Reverse a given string.
+
+    Args:
+        input_str (str): The input string to be reversed.
+
+    Returns:
+        str: The reversed string.
+    """
+    return input_str[::-1]
+
 class Cache:
     """
     Cache class for storing data using Redis
@@ -25,10 +37,10 @@ class Cache:
     def store(self, data: Union[str, bytes, int, float]) -> str:
         """
         Stores data in Redis with a randomly generated key and returns the key.
-        
+
         Args:
             data: Data to be stored. Can be str, bytes, int, or float.
-        
+
         Returns:
             str: Randomly generated key used to store the data in Redis.
         """
@@ -62,10 +74,10 @@ class Cache:
 
     def get_str(self, data: bytes) -> str:
         """
-        Converts bytes to string.
+        Converts bytes to a string.
 
         Args:
-            data: Bytes to be converted to string.
+            data: Bytes to be converted to a string.
 
         Returns:
             str: Converted string.
@@ -74,10 +86,10 @@ class Cache:
 
     def get_int(self, data: bytes) -> int:
         """
-        Converts bytes to integers.
+        Converts bytes to an integer.
 
         Args:
-            data: Bytes to be converted to integer.
+            data: Bytes to be converted to an integer.
 
         Returns:
             int: Converted integer.
@@ -87,10 +99,10 @@ class Cache:
     def count_calls(method: Callable) -> Callable:
         """
         Decorator to count the number of times a method is called.
-        
+
         Args:
             method: The method to be decorated.
-        
+
         Returns:
             Callable: Decorated method.
         """
@@ -108,10 +120,10 @@ class Cache:
         """
         Decorator to store the history of inputs and outputs for a particular
         function.
-        
+
         Args:
             method: The method to be decorated.
-        
+
         Returns:
             Callable: Decorated method.
         """
@@ -131,6 +143,7 @@ class Cache:
             return output
         return wrapper
 
+    @staticmethod
     def replay(fn: Callable) -> None:
         """
         Check Redis for how many times a function was called and display:
@@ -146,4 +159,3 @@ class Cache:
         print(f'{fn.__qualname__} was called {calls} times:')
         for input, output in zip(inputs, outputs):
             print(f'{fn.__qualname__}(*{input}) -> {output}')
-
