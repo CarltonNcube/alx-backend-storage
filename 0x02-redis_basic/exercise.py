@@ -12,13 +12,14 @@ class Cache:
 
     def store(self, data: Union[str, bytes, int, float]) -> str:
         key = str(uuid4())
-        self._redis.set(key, data)
+        client = self._redis
+        client.set(key, data)
         return key
 
     def get(self, key: str, fn: Optional[Callable] = None) -> Any:
         value = self._redis.get(key)
-        if value is None:
-            return None
+        if not value:
+            return
         if fn is int:
             return self.get_int(value)
         if fn is str:
@@ -33,23 +34,20 @@ class Cache:
     def get_int(self, data: bytes) -> int:
         return int(data)
 
-def call_history(method: Callable) -> Callable:
-    @wraps(method)
-    def wrapper(self: Any, *args) -> Any:
-        inputs_key = f"{method.__name__}:inputs"
-        outputs_key = f"{method.__name__}:outputs"
-
-        self._redis.rpush(inputs_key, str(args))
-        output = method(self, *args)
-        self._redis.rpush(outputs_key, output)
-        return output
-    return wrapper
-
 def count_calls(method: Callable) -> Callable:
     @wraps(method)
-    def wrapper(self: Any, *args, **kwargs) -> Any:
+    def wrapper(self: Any, *args, **kwargs) -> str:
         self._redis.incr(method.__qualname__)
         return method(self, *args, **kwargs)
+    return wrapper
+
+def call_history(method: Callable) -> Callable:
+    @wraps(method)
+    def wrapper(self: Any, *args) -> str:
+        self._redis.rpush(f'{method.__qualname__}:inputs', str(args))
+        output = method(self, *args)
+        self._redis.rpush(f'{method.__qualname__}:outputs', output)
+        return output
     return wrapper
 
 def replay(fn: Callable) -> None:
