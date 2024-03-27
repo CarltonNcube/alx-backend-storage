@@ -10,103 +10,114 @@ from functools import wraps
 from typing import Union, Callable, Optional
 
 
+def count_calls(method: Callable) -> Callable:
+    """
+    Decorator to count the number of times a method is called.
+
+    Args:
+        method: The method to be decorated.
+
+    Returns:
+        Callable: Decorated method.
+    """
+    @wraps(method)
+    def wrapper(self: Any, *args, **kwargs) -> str:
+        """
+        Wraps called method and adds its call count to Redis before execution
+        """
+        self._redis.incr(method.__qualname__)
+        return method(self, *args, **kwargs)
+    return wrapper
+
+
+def call_history(method: Callable) -> Callable:
+    """
+    Decorator to store the history of inputs and outputs for a particular function.
+
+    Args:
+        method: The method to be decorated.
+
+    Returns:
+        Callable: Decorated method.
+    """
+    @wraps(method)
+    def wrapper(self: Any, *args) -> str:
+        """
+        Wraps called method and tracks its passed arguments by storing
+        them to Redis
+        """
+        self._redis.rpush(f'{method.__qualname__}:inputs', str(args))
+        output = method(self, *args)
+        self._redis.rpush(f'{method.__qualname__}:outputs', output)
+        return output
+    return wrapper
+
+
+def replay(fn: Callable) -> None:
+    """
+    Check Redis for how many times a function was called and display:
+        - How many times it was called
+        - Function args and output for each call
+    """
+    client = redis.Redis()
+    calls = client.get(fn.__qualname__).decode('utf-8')
+    inputs = [input.decode('utf-8') for input in
+              client.lrange(f'{fn.__qualname__}:inputs', 0, -1)]
+    outputs = [output.decode('utf-8') for output in
+               client.lrange(f'{fn.__qualname__}:outputs', 0, -1)]
+    print(f'{fn.__qualname__} was called {calls} times:')
+    for input, output in zip(inputs, outputs):
+        print(f'{fn.__qualname__}(*{input}) -> {output}')
+
+
 class Cache:
     """
-    Cache class for storing data using Redis
+    Caching class
     """
-
     def __init__(self) -> None:
         """
-        Initializes the Cache object with a Redis client as a private variable _redis
-        and flushes the database.
+        Initialize new cache object
         """
         self._redis = redis.Redis()
         self._redis.flushdb()
 
-    def store(self, data: Union[str, bytes, int, float]) -> str:
+    @call_history
+    @count_calls
+    def store(self, data: Union[str, bytes,  int,  float]) -> str:
         """
-        Stores data in Redis with a random key and returns the key.
-        
-        Args:
-            data: Data to be stored. Can be str, bytes, int, or float.
-        
-        Returns:
-            str: Randomly generated key used to store the data in Redis.
+        Stores data in Redis with randomly generated key
         """
         key = str(uuid4())
-        self._redis.set(key, data)
+        client = self._redis
+        client.set(key, data)
         return key
 
-    def get(self, key: str, fn: Optional[Callable] = None) -> Union[str, bytes, int, float, None]:
+    def get(self, key: str, fn: Optional[Callable] = None) -> Any:
         """
-        Retrieves data from Redis using the given key.
-        
-        Args:
-            key: Key used to retrieve data from Redis.
-            fn: Optional function to convert the retrieved data to the desired format.
-        
-        Returns:
-            Union[str, bytes, int, float, None]: Retrieved data, converted to the desired format if specified.
+        Gets key's value from Redis and converts
+        result byte into correct data type
         """
-        value = self._redis.get(key)
-        if value is None:
-            return None
-        if fn:
+        client = self._redis
+        value = client.get(key)
+        if not value:
+            return
+        if fn is int:
+            return self.get_int(value)
+        if fn is str:
+            return self.get_str(value)
+        if callable(fn):
             return fn(value)
         return value
 
-    def count_calls(self, method: Callable) -> Callable:
+    def get_str(self, data: bytes) -> str:
         """
-        Decorator to count the number of times a method is called.
-        
-        Args:
-            method: The method to be decorated.
-        
-        Returns:
-            Callable: Decorated method.
+        Converts bytes to string
         """
-        @wraps(method)
-        def wrapper(*args, **kwargs):
-            key = method.__qualname__
-            self._redis.incr(key)
-            return method(*args, **kwargs)
-        return wrapper
+        return data.decode('utf-8')
 
-    def call_history(self, method: Callable) -> Callable:
+    def get_int(self, data: bytes) -> int:
         """
-        Decorator to store the history of inputs and outputs for a particular function.
-        
-        Args:
-            method: The method to be decorated.
-        
-        Returns:
-            Callable: Decorated method.
+        Converts bytes to integers
         """
-        @wraps(method)
-        def wrapper(*args, **kwargs):
-            inputs_key = f"{method.__qualname__}:inputs"
-            outputs_key = f"{method.__qualname__}:outputs"
+        return int(data)
 
-            self._redis.rpush(inputs_key, str(args))
-            output = method(*args, **kwargs)
-            self._redis.rpush(outputs_key, output)
-
-            return output
-        return wrapper
-
-    def replay(self, method: Callable) -> None:
-        """
-        Displays the history of calls of a particular function.
-        
-        Args:
-            method: The method for which to display the history of calls.
-        """
-        inputs_key = f"{method.__qualname__}:inputs"
-        outputs_key = f"{method.__qualname__}:outputs"
-
-        inputs = self._redis.lrange(inputs_key, 0, -1)
-        outputs = self._redis.lrange(outputs_key, 0, -1)
-
-        print(f"{method.__qualname__} was called {len(inputs)} times:")
-        for input_, output in zip(inputs, outputs):
-            print(f"{method.__qualname__}{input_} -> {output}")
