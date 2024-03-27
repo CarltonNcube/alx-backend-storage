@@ -92,7 +92,7 @@ def count_calls(method: Callable) -> Callable:
     """
     Decorator for tracking the number of calls to Cache class methods
     """
-    
+    @wraps(method)
     def wrapper(self: Any, *args, **kwargs) -> str:
         """
         Wraps the called method, increments its call count in Redis,
@@ -107,7 +107,7 @@ def call_history(method: Callable) -> Callable:
     """
     Decorator for tracking arguments passed to Cache class methods
     """
-    
+    @wraps(method)
     def wrapper(self: Any, *args) -> str:
         """
         Wraps the called method, tracks its passed arguments by storing
