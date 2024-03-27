@@ -89,14 +89,11 @@ class Cache:
 
 
 def count_calls(method: Callable) -> Callable:
-    """
-    Decorator for tracking the number of calls to Cache class methods
+    """Decorator for tracking the number of calls to Cache class methods
     """
     @wraps(method)
     def wrapper(self: Any, *args, **kwargs) -> str:
-        """
-        Wraps the called method, increments its call count in Redis,
-        then executes it
+        """Wraps the called method, increments its call count & executes it
         """
         self._redis.incr(method.__qualname__)
         return method(self, *args, **kwargs)
@@ -104,14 +101,11 @@ def count_calls(method: Callable) -> Callable:
 
 
 def call_history(method: Callable) -> Callable:
-    """
-    Decorator for tracking arguments passed to Cache class methods
+    """Decorator for tracking arguments passed to Cache class methods
     """
     @wraps(method)
     def wrapper(self: Any, *args) -> str:
-        """
-        Wraps the called method, tracks its passed arguments by storing
-        them in Redis
+        """Wraps the called method, tracks its passed arguments by storing them
         """
         self._redis.rpush(f'{method.__qualname__}:inputs', str(args))
         output = method(self, *args)
@@ -121,8 +115,7 @@ def call_history(method: Callable) -> Callable:
 
 
 def replay(fn: Callable) -> None:
-    """
-    Check Redis for the number of times a function was called and display:
+    """Check Redis for the number of times a function was called and display:
             - The number of times it was called
             - Function arguments and output for each call
     """
