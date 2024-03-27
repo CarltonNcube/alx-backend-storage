@@ -10,40 +10,29 @@ from functools import wraps
 from typing import Callable
 
 
-redis_conn = redis.Redis()
-
-def cache_page(func):
+def track_get_page(fn: Callable) -> Callable:
+    """ Decorator for get_page
     """
-    Decorator for caching page content and tracking access count
-    """
-    @wraps(func)
-    def wrapper(url):
+    @wraps(fn)
+    def wrapper(url: str) -> str:
+        """ Wrapper that:
+            - check whether a url's data is cached
+            - tracks how many times get_page is called
         """
-        Wrapper that:
-        - Checks whether a URL's data is cached
-        - Tracks how many times get_page is called
-        """
-        # Increment URL access count
-        redis_conn.incr(f'count:{url}')
-
-        # Check if page content is cached
-        page_content = redis_conn.get(url)
-        if page_content:
-            return page_content.decode('utf-8')
-
-        # If not cached, request the page content
-        response = func(url)
-        redis_conn.setex(url, 10, response)
-
+        client = redis.Redis()
+        client.incr(f'count:{url}')
+        cached_page = client.get(f'{url}')
+        if cached_page:
+            return cached_page.decode('utf-8')
+        response = fn(url)
+        client.set(f'{url}', response, 10)
         return response
-
     return wrapper
 
-@cache_page
+
+@track_get_page
 def get_page(url: str) -> str:
-    """
-    Makes an HTTP request to a given endpoint
+    """ Makes a http request to a given endpoint
     """
     response = requests.get(url)
     return response.text
-
