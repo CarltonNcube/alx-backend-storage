@@ -33,7 +33,8 @@ class Cache:
             str: Randomly generated key used for data storage in Redis.
         """
         key = str(uuid4())
-        self._redis.set(key, data)
+        client = self._redis
+        client.set(key, data)
         return key
 
     def get(self, key: str, fn: Optional[Callable] = None) -> Any:
@@ -48,18 +49,19 @@ class Cache:
         Returns:
             Any: The retrieved data, optionally converted based on the provided function.
         """
-        value = self._redis.get(key)
-        if value is None:
-            return None
+        client = self._redis
+        value = client.get(key)
+        if not value:
+            return
         if fn is int:
-            return self.convert_to_int(value)
+            return self.get_int(value)
         if fn is str:
-            return self.convert_to_str(value)
+            return self.get_str(value)
         if callable(fn):
             return fn(value)
         return value
 
-    def convert_to_str(self, data: bytes) -> str:
+    def get_str(self, data: bytes) -> str:
         """
         Converts bytes to string.
 
@@ -71,7 +73,7 @@ class Cache:
         """
         return data.decode('utf-8')
 
-    def convert_to_int(self, data: bytes) -> int:
+    def get_int(self, data: bytes) -> int:
         """
         Converts bytes to integers.
 
