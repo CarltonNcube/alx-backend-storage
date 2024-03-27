@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 
-"""
-Utilize Redis for caching operations
-"""
 import redis
 from uuid import uuid4
 from functools import wraps
 from typing import Any, Callable, Optional, Union
-
 
 class Cache:
     def __init__(self) -> None:
@@ -37,29 +33,44 @@ class Cache:
     def get_int(self, data: bytes) -> int:
         return int(data)
 
-def count_calls(method: Callable) -> Callable:
-    @wraps(method)
-    def wrapper(self: Any, *args, **kwargs) -> str:
-        self._redis.incr(method.__qualname__)
-        return method(self, *args, **kwargs)
-    return wrapper
-
 def call_history(method: Callable) -> Callable:
     @wraps(method)
-    def wrapper(self: Any, *args) -> str:
-        self._redis.rpush(f'{method.__qualname__}:inputs', str(args))
+    def wrapper(self: Any, *args) -> Any:
+        inputs_key = f"{method.__name__}:inputs"
+        outputs_key = f"{method.__name__}:outputs"
+
+        self._redis.rpush(inputs_key, str(args))
         output = method(self, *args)
-        self._redis.rpush(f'{method.__qualname__}:outputs', output)
+        self._redis.rpush(outputs_key, output)
         return output
+    return wrapper
+
+def count_calls(method: Callable) -> Callable:
+    @wraps(method)
+    def wrapper(self: Any, *args, **kwargs) -> Any:
+        self._redis.incr(method.__qualname__)
+        return method(self, *args, **kwargs)
     return wrapper
 
 def replay(fn: Callable) -> None:
     client = redis.Redis()
     calls = client.get(fn.__qualname__).decode('utf-8')
-    inputs = [input.decode('utf-8') for input in 
+    inputs = [input.decode('utf-8') for input in
             client.lrange(f'{fn.__qualname__}:inputs', 0, -1)]
-    outputs = [output.decode('utf-8') for output in 
+    outputs = [output.decode('utf-8') for output in
             client.lrange(f'{fn.__qualname__}:outputs', 0, -1)]
     print(f'{fn.__qualname__} was called {calls} times:')
     for input, output in zip(inputs, outputs):
         print(f'{fn.__qualname__}(*{input}) -> {output}')
+
+Cache.store = count_calls(Cache.store)
+Cache.store = call_history(Cache.store)
+
+cache = Cache()
+
+cache.store(b"first")
+print(cache.get(cache.store.__qualname__))
+
+cache.store(b"second")
+cache.store(b"third")
+print(cache.get(cache.store.__qualname__))
