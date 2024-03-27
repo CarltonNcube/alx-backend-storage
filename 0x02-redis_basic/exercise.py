@@ -16,7 +16,8 @@ class Cache:
 
     def __init__(self) -> None:
         """
-        Initializes the Cache object with a Redis client and flushes the database.
+        Initializes the Cache object with a Redis client and flushes the
+        database.
         """
         self._redis = redis.Redis()
         self._redis.flushdb()
@@ -37,14 +38,16 @@ class Cache:
 
     def get(self, key: str, fn: Optional[Callable] = None) -> Any:
         """
-        Retrieves data from Redis using the provided key and optionally applies a conversion function.
+        Retrieves data from Redis using the provided key and optionally applies
+        a conversion function.
 
         Args:
             key: The key used to retrieve the data from Redis.
             fn: Optional conversion function to be applied to the retrieved data.
 
         Returns:
-            Any: The retrieved data, optionally converted based on the provided function.
+            Any: The retrieved data, optionally converted based on the provided
+            function.
         """
         value = self._redis.get(key)
         if not value:
@@ -80,4 +83,67 @@ class Cache:
             int: Converted integer.
         """
         return int(data)
+
+    def count_calls(method: Callable) -> Callable:
+        """
+        Decorator to count the number of times a method is called.
+        
+        Args:
+            method: The method to be decorated.
+        
+        Returns:
+            Callable: Decorated method.
+        """
+        @wraps(method)
+        def wrapper(self, *args, **kwargs):
+            """
+            Wraps the called method and increments the call count in Redis
+            before execution.
+            """
+            self._redis.incr(method.__qualname__)
+            return method(self, *args, **kwargs)
+        return wrapper
+
+    def call_history(method: Callable) -> Callable:
+        """
+        Decorator to store the history of inputs and outputs for a particular
+        function.
+        
+        Args:
+            method: The method to be decorated.
+        
+        Returns:
+            Callable: Decorated method.
+        """
+        @wraps(method)
+        def wrapper(self, *args, **kwargs):
+            """
+            Wraps the called method and tracks its passed arguments by storing
+            them in Redis.
+            """
+            inputs_key = f"{method.__qualname__}:inputs"
+            outputs_key = f"{method.__qualname__}:outputs"
+
+            self._redis.rpush(inputs_key, str(args))
+            output = method(self, *args, **kwargs)
+            self._redis.rpush(outputs_key, output)
+
+            return output
+        return wrapper
+
+    def replay(fn: Callable) -> None:
+        """
+        Check Redis for how many times a function was called and display:
+            - How many times it was called
+            - Function args and output for each call
+        """
+        client = redis.Redis()
+        calls = client.get(fn.__qualname__).decode('utf-8')
+        inputs = [input.decode('utf-8') for input in 
+                client.lrange(f'{fn.__qualname__}:inputs', 0, -1)]
+        outputs = [output.decode('utf-8') for output in 
+                client.lrange(f'{fn.__qualname__}:outputs', 0, -1)]
+        print(f'{fn.__qualname__} was called {calls} times:')
+        for input, output in zip(inputs, outputs):
+            print(f'{fn.__qualname__}(*{input}) -> {output}')
 
